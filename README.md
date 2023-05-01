@@ -4,9 +4,9 @@ shows number of years, months, days, hours, workingdays until a given target dat
 
 ## Prerequisites
 
-* sudo apt-get install python3-dateutil
-* sudo apt-get install python3-pandas
-* sudo pip3 install holidays
+* `sudo apt-get install python3-dateutil`
+* `sudo apt-get install python3-pandas`
+* `sudo pip3 install holidays`
 
 
 Die Moduleabhängigkeiten werden mit dem requirements.txt installiert
@@ -15,6 +15,8 @@ Die Moduleabhängigkeiten werden mit dem requirements.txt installiert
 * Modul 'holidays'
 
 ## Installation
+
+copy script to a location you prefer
 
 
 ## Usage
