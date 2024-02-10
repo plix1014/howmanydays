@@ -69,9 +69,16 @@ date_fmt2 = '%A, %d. %B %Y, %H:%M:%S'
 # default Urlaubstage
 URLAUBS_TAGE = 25
 
+# default Krankenstand
+KRANK_TAGE = 5
+
 # geplanter Pensionsantritt
 RETIRE_DATE  = '2030-11-01 00:00:00'
 
+# HL->Wien->HL
+KM_PER_DAY    = 110
+# price per week
+FUEL_PER_WEEK = 50
 
 # de_AT.ISO8859-1
 locale.setlocale(locale.LC_ALL, "")
@@ -103,7 +110,7 @@ def ydaysBetweenDates(date1,date2):
     return int(y-x)
 
 
-def calc_dates(date_now, rt_date, vac_days, mode=1):
+def calc_dates(date_now, rt_date, vac_days, sick_days, mode=1, costs=False):
 
     # start date
     dts      = datetime.strptime(date_now, date_fmt)
@@ -161,9 +168,13 @@ def calc_dates(date_now, rt_date, vac_days, mode=1):
     dt_first = dts_ye - dts
     dt_last  = dte    - dte_yb
 
-    # aliquote days for first and last year
+    # aliquote vac days for first and last year
     vac_part1 = math.ceil(vac_days/365*dt_first.days)
     vac_part2 = math.ceil(vac_days/365*dt_last.days)
+
+    # aliquote sick leave days for first and last year
+    sick_part1 = math.ceil(sick_days/365*dt_first.days)
+    sick_part2 = math.ceil(sick_days/365*dt_last.days)
 
     # nb of years for the rest of the timespan
     mid_diff  = relativedelta(dte_yb,dts_ye)
@@ -172,21 +183,32 @@ def calc_dates(date_now, rt_date, vac_days, mode=1):
     # sum up vacation days
     nb_vac_days =  int(vac_part1 + vac_part2 + mid_years*vac_days)
 
+    # sum up sick leave days
+    nb_sick_days =  int(sick_part1 + sick_part2 + mid_years*sick_days)
+
     # estimation of number of vacation days
     #nb_vac_days =  int(vac_days * (years + months/12))
+
+    # estimation
+    nb_netto_days = int(bdays_no_vac)-int(nb_vac_days)-int(nb_sick_days)
+    nb_km         = nb_netto_days * KM_PER_DAY
+    fuel_costs    = nb_netto_days/5*FUEL_PER_WEEK
 
 
     #-----------------------------------------------------------
     # print result
 
     # quick and dirty_ without locales
-    gf_months    = "{:,}".format(g_months).replace(',', '.')
-    gf_weeks     = "{:,}".format(g_days // 7).replace(',', '.')
-    gf_week_days = "{:,}".format(g_days % 7).replace(',', '.')
-    gf_days      = "{:,}".format(g_days).replace(',', '.')
-    gf_hours     = "{:,}".format(g_hours).replace(',', '.')
-    gf_minutes   = "{:,}".format(g_minutes).replace(',', '.')
-    gf_seconds   = "{:,}".format(g_seconds).replace(',', '.')
+    gf_months     = "{:,}".format(g_months).replace(',', '.')
+    gf_weeks      = "{:,}".format(g_days // 7).replace(',', '.')
+    gf_week_days  = "{:,}".format(g_days % 7).replace(',', '.')
+    gf_days       = "{:,}".format(g_days).replace(',', '.')
+    gf_hours      = "{:,}".format(g_hours).replace(',', '.')
+    gf_minutes    = "{:,}".format(g_minutes).replace(',', '.')
+    gf_seconds    = "{:,}".format(g_seconds).replace(',', '.')
+
+    gf_nb_km      = "{:,}".format(nb_km).replace(',', '.')
+    gf_fuel_costs = "{:_}".format(fuel_costs).replace('.', ',').replace('_','.')
 
 
     print("=================================================")
@@ -210,13 +232,18 @@ def calc_dates(date_now, rt_date, vac_days, mode=1):
         print("gesamt Stunden     : %9s" % gf_hours)
         print("gesamt Minuten     : %9s" % gf_minutes)
 
+        if costs:
+            print("\ngesamt km          : %9s" % (gf_nb_km))
+            print("gesamt Benzinkosten: %11s" % (gf_fuel_costs))
+
         print()
         print("Urlaubstage p/a    : %9s" % vac_days)
         print("gesamt Urlaubst.   : %9s" % nb_vac_days)
+        print("gesch. Krankenst.  : %9s" % nb_sick_days)
         print("Werktage(MO-FR)    : %9s" % bdays)
         print("Arbeitstage        : %9s" % bdays_no_vac)
         print("------------------------------")
-        print("netto Arbeitstage  : %9s" % (int(bdays_no_vac)-int(nb_vac_days)))
+        print("netto Arbeitstage  : %9s" % int(nb_netto_days))
         print("------------------------------")
 
     if mode == 2:
@@ -245,9 +272,15 @@ def calc_dates(date_now, rt_date, vac_days, mode=1):
         print(" - %4s Feiertage" % fday)
         print(" = %4s Arbeitstage" % bdays_no_vac)
         print(" - %4s Urlaubstage (%s p/a)" % (nb_vac_days, vac_days))
+        print(" - %4s Krankenstandstage (gesch.) (%s p/a)" % (nb_sick_days, sick_days))
         print("------------------------------")
-        print("   %4s netto Arbeitstage" % (int(bdays_no_vac)-int(nb_vac_days)))
+        print("   %4s netto Arbeitstage" % int(nb_netto_days))
         print("------------------------------")
+        if costs:
+            print("\n-- KOSTEN ---------------------------")
+            print("%7s km bis Ende" % (gf_nb_km))
+            print("%9s € voraussicht. Benzinkosten" % (gf_fuel_costs))
+            print("-------------------------------------")
 
 
     #print("\n=================================================")
@@ -256,11 +289,12 @@ def calc_dates(date_now, rt_date, vac_days, mode=1):
 
 
 def usage():
-    msg  = "\nusage: " + __file__ + " -e yyyy-mm-dd [-s yyyy-mm-dd] [-v n] [-m n]\n"
+    msg  = "\nusage: " + __file__ + " -e yyyy-mm-dd [-s yyyy-mm-dd] [-v n] [-m n] [ -c ]\n"
     msg += "\t\t-e|--enddate yyyy-mm-dd \t.... End date\n"
     msg += "\t\t-s|--startdate yyyy-mm-dd \t.... Start date\n"
     msg += "\t\t-v|--vacationdays n \t\t.... number of vacation days\n"
-    msg += "\t\t-m|--displaymode n  \t\t.... displaymode [1|2]\n\n"
+    msg += "\t\t-m|--displaymode n  \t\t.... displaymode [1|2]\n"
+    msg += "\t\t-m|--costs  \t\t\t.... show costs\n\n"
     msg += "\t" + __file__ + " -e "+RETIRE_DATE[:-9]+"\n"
     msg += "\t" + __file__ + " -e "+RETIRE_DATE[:-9]+" -v 30\n"
     msg += "\t" + __file__ + " -e "+RETIRE_DATE[:-9]+" -s "+sdate[:-9]+" -v 30\n"
@@ -280,13 +314,14 @@ if __name__ == "__main__":
     p_edate = ''
     p_vdays = 0
     p_mode = 1
+    p_costs = False
 
     # use current day as start unless -s is used
     sdate   = strftime(date_fmt, localtime())
 
     # check for options
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "hs:e:v:m:", ["help", "startdate", "enddate", "vacationdays", "displaymode"])
+        opts, args = getopt.getopt(sys.argv[1:], "hs:e:v:m:c", ["help", "startdate", "enddate", "vacationdays", "displaymode", "costs"])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(("%s" % str(err))) # will print something like "option -a not recognized"
@@ -304,6 +339,9 @@ if __name__ == "__main__":
 
         elif o in ("-m", "--displaymode"):
             p_mode = int(a)
+
+        elif o in ("-c", "--costs"):
+            p_costs = True
 
         elif o in ("-h", "--help"):
             usage()
@@ -346,6 +384,6 @@ if __name__ == "__main__":
 
 
     print()
-    calc_dates(sdate, RETIRE_DATE, URLAUBS_TAGE, p_mode)
+    calc_dates(sdate, RETIRE_DATE, URLAUBS_TAGE, KRANK_TAGE, p_mode, p_costs)
 
 
